@@ -50,7 +50,7 @@ At the top of the App Delegate's implemention file, include FileDrone:
 #import "FileDrone.h"
 ```
 
-In `applicationWillEnterForeground:` and `applicationDidBecomeActive:`, start the default file drone like so:
+In `application:didFinishLaunchingWithOptions:`, start the default file drone like so:
 
 ```objc
 [[JSMFileDrone defaultFileDrone] startSurveillance];
