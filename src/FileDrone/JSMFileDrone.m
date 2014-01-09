@@ -28,7 +28,7 @@
 
 @property (strong, nonatomic) NSTimer *surveillanceTimer;
 
-- (instancetype)initWithDirectoryURL:(NSURL *)directoryURL;
+@property (nonatomic) BOOL allowUpdates;
 
 @end
 
@@ -52,7 +52,12 @@
 
 - (instancetype)initWithDirectoryURL:(NSURL *)directoryURL {
     if( ( self = [super init] ) ) {
+
         self.directoryURL = directoryURL;
+
+        // Enable updates by default
+        _allowUpdates = YES;
+
     }
     return self;
 }
@@ -86,6 +91,12 @@
 #pragma mark - Manual surveillance
 
 - (void)refresh {
+    // Let's make sure we're allowing updates at the moment
+    if( ! _allowUpdates ) {
+        return;
+    }
+    // Stop updates for a minute
+    _allowUpdates = NO;
     // Fetch an enumerator so we can go through the directory contents
     NSDirectoryEnumerator *dirEnumerator = [NSFileManager.defaultManager
                                             enumeratorAtURL:_directoryURL
@@ -167,6 +178,8 @@
         [userInfo setObject:_directoryURL forKey:kFileDroneNotificationDirectoryURL];
         [[NSNotificationCenter defaultCenter] postNotificationName:@"JSMFileDroneFilesChanged" object:self userInfo:userInfo.copy];
     }
+    // Restart updates
+    _allowUpdates = YES;
 }
 
 #pragma mark - Automatic surveillance
@@ -233,6 +246,32 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
     // Stop the current surveillance
     [self pauseSurveillance];
+}
+
+- (void)enableUpdates {
+    // We're not surveilling anyway
+    if( ! self.isSurveilling ) {
+        return;
+    }
+    // we're already allowing updates
+    if( _allowUpdates ) {
+        return;
+    }
+    // Enable updates
+    _allowUpdates = YES;
+}
+
+- (void)disableUpdates {
+    // We're not surveilling anyway
+    if( ! self.isSurveilling ) {
+        return;
+    }
+    // We're not allowing updates
+    if( ! _allowUpdates ) {
+        return;
+    }
+    // Disable updates
+    _allowUpdates = NO;
 }
 
 @end

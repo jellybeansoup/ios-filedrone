@@ -166,4 +166,26 @@
 
 - (void)stopSurveillance;
 
+/**
+ * Disables updates to the file drone lists.
+ *
+ * You should invoke this method before iterating over the query results. This stops the file drone from updating its internal
+ * listing of files while you respond to a change notification.
+ *
+ * @return void
+ */
+
+- (void)disableUpdates;
+
+/**
+ * Enables updates to the file drone lists.
+ *
+ * You should invoke this method after you’re done iterating over the query results. This will allow the filedrone to resume
+ * updating its internal listing of files after you've responded to a notification.
+ *
+ * @return void
+ */
+
+- (void)enableUpdates;
+
 @end
