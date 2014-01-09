@@ -26,6 +26,7 @@
 
 #define kFileDroneNotificationDirectoryURL @"kFileDroneNotificationDirectoryURL"
 #define kFileDroneNotificationAddedURLs @"kFileDroneNotificationAddedURLs"
+#define kFileDroneNotificationChangedURLs @"kFileDroneNotificationChangedURLs"
 #define kFileDroneNotificationRemovedURLs @"kFileDroneNotificationRemovedURLs"
 
 /**
@@ -97,6 +98,14 @@
  */
 
 @property (strong, nonatomic, readonly) NSArray *addedFileURLs;
+
+/**
+ * Array containing `NSURL` objects for files in the directory that have been modified.
+ *
+ * The contents of this array reflects the added or modified files detected during the last check.
+ */
+
+@property (strong, nonatomic, readonly) NSArray *changedFileURLs;
 
 /**
  * Array containing `NSURL` objects for files removed from the directory.

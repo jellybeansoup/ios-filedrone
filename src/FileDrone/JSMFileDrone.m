@@ -23,12 +23,15 @@
 //
 
 #import "JSMFileDrone.h"
+#import <CommonCrypto/CommonDigest.h>
 
 @interface JSMFileDrone ()
 
 @property (strong, nonatomic) NSTimer *surveillanceTimer;
 
 @property (nonatomic) BOOL allowUpdates;
+
+@property (strong, nonatomic) NSDictionary *modificationDates;
 
 @end
 
@@ -58,6 +61,11 @@
         // Enable updates by default
         _allowUpdates = YES;
 
+        // Get the stored list of modification dates
+        if( [NSFileManager.defaultManager fileExistsAtPath:[self modificationDatesURL].path] ) {
+            _modificationDates = [[NSDictionary alloc] initWithContentsOfURL:[self modificationDatesURL]];
+        }
+
     }
     return self;
 }
@@ -82,6 +90,14 @@
     }
     // Set the directoryURL
     _directoryURL = directoryURL;
+    // Store an encoded identifier
+    const char *utf8 = _directoryURL.absoluteString.UTF8String;
+    unsigned char md5Buffer[16];
+    CC_MD5( utf8, strlen(utf8), md5Buffer );
+    NSMutableString *output = [NSMutableString stringWithCapacity:CC_MD5_DIGEST_LENGTH * 2];
+    for(int i = 0; i < CC_MD5_DIGEST_LENGTH; i++)
+        [output appendFormat:@"%02x",md5Buffer[i]];
+    _encodedIdentifier = [output copy];
     // Start surveilling again
     if( isSurveilling ) {
         [self startSurveillance];
@@ -98,16 +114,12 @@
     // Stop updates for a minute
     _allowUpdates = NO;
     // Fetch an enumerator so we can go through the directory contents
-    NSDirectoryEnumerator *dirEnumerator = [NSFileManager.defaultManager
-                                            enumeratorAtURL:_directoryURL
-                                            includingPropertiesForKeys:[NSArray arrayWithObjects:NSURLIsDirectoryKey, nil]
-                                            options:NSDirectoryEnumerationSkipsHiddenFiles
-                                            errorHandler:^BOOL(NSURL *url, NSError *error) {
-                                                return YES;
-                                            }];
+    NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLNameKey,NSURLIsDirectoryKey,NSURLTypeIdentifierKey,NSURLContentModificationDateKey,nil]];
     // We're going to fetch a list of files, and a list of new ones
     NSMutableArray *fileURLs = [NSMutableArray array];
     NSMutableArray *addedFileURLs = [NSMutableArray array];
+    NSMutableArray *changedFileURLs = [NSMutableArray array];
+    NSMutableDictionary *modificationDates = [NSMutableDictionary dictionary];
     // Enumerate the dirEnumerator results, each value is stored in allURLs
     for( NSURL *url in dirEnumerator ) {
         // If it's a directory, we do nothing
@@ -136,9 +148,18 @@
         NSURL *relativeURL = url.URLByStandardizingPath;
         // Add to the fileURLs array
         [fileURLs addObject:relativeURL];
+        // Get the modification date and add to the dictionary
+        NSDate *modificationDate;
+        [url getResourceValue:&modificationDate forKey:NSURLContentModificationDateKey error:NULL];
+        [modificationDates setObject:modificationDate forKey:relativeURL.absoluteString];
         // If the url isn't in our existing list, it goes in the addedFileURLs too
         if( ! [_fileURLs containsObject:relativeURL] ) {
             [addedFileURLs addObject:relativeURL];
+            [changedFileURLs addObject:relativeURL];
+        }
+        // If the url isn't in our existing list, it goes in the addedFileURLs too
+        else if( [modificationDate timeIntervalSinceDate:(NSDate *)[_modificationDates objectForKey:relativeURL.absoluteString]] ) {
+            [changedFileURLs addObject:relativeURL];
         }
     }
     // Now we determine what files were removed
@@ -153,6 +174,12 @@
     if( ! [_fileURLs isEqualToArray:fileURLs.copy] ) {
         _fileURLs = fileURLs.copy;
     }
+    // Update the list of modification dates
+    if( ! [_modificationDates isEqualToDictionary:modificationDates.copy] ) {
+        _modificationDates = modificationDates.copy;
+        // Store them as a file too
+        [_modificationDates writeToURL:[self modificationDatesURL] atomically:YES];
+    }
     // User info dictionary for notification
     NSMutableDictionary *userInfo = [NSMutableDictionary dictionary];
     // Update the list of added files
@@ -162,6 +189,15 @@
         // We only send the notification if there are files to process
         if( _addedFileURLs.count > 0 ) {
             [userInfo setObject:_addedFileURLs forKey:kFileDroneNotificationAddedURLs];
+        }
+    }
+    // Update the list of files that have been modified
+    if( ! [_changedFileURLs isEqualToArray:changedFileURLs.copy] ) {
+        // Update the list
+        _changedFileURLs = changedFileURLs.copy;
+        // We only send the notification if there are files to process
+        if( _changedFileURLs.count > 0 ) {
+            [userInfo setObject:_changedFileURLs forKey:kFileDroneNotificationChangedURLs];
         }
     }
     // Update the list of removed files
@@ -180,6 +216,11 @@
     }
     // Restart updates
     _allowUpdates = YES;
+}
+
+- (NSURL *)modificationDatesURL {
+    NSString *file = [NSString stringWithFormat:@"JSMFileDrone.%@.modifiedtimes",_encodedIdentifier];
+    return [[[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask] lastObject] URLByAppendingPathComponent:file];
 }
 
 #pragma mark - Automatic surveillance
@@ -244,6 +285,7 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationDidBecomeActiveNotification" object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationWillResignActiveNotification" object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationWillTerminateNotification" object:nil];
     // Stop the current surveillance
     [self pauseSurveillance];
 }
@@ -272,6 +314,14 @@
     }
     // Disable updates
     _allowUpdates = NO;
+}
+
+#pragma mark - Utilities
+
+- (NSDirectoryEnumerator *)directoryEnumeratorIncludingPropertiesForKeys:(NSArray *)keys {
+    return [NSFileManager.defaultManager enumeratorAtURL:_directoryURL includingPropertiesForKeys:keys options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:^BOOL(NSURL *url, NSError *error) {
+        return YES;
+    }];
 }
 
 @end
