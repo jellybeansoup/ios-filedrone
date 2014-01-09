@@ -105,6 +105,22 @@
         if( [isDirectory boolValue] == YES ) {
             continue;
         }
+        // Match against the file name regular expression
+        if( _fileNameRegex != nil ) {
+            NSString *fileName;
+            [url getResourceValue:&fileName forKey:NSURLNameKey error:NULL];
+            if( [_fileNameRegex numberOfMatchesInString:fileName options:0 range:NSMakeRange( 0, fileName.length )] <= 0 ) {
+                continue;
+            }
+        }
+        // Match against the type identifier regular expression
+        if( _typeIdentifierRegex != nil ) {
+            NSString *typeIdentifier;
+            [url getResourceValue:&typeIdentifier forKey:NSURLTypeIdentifierKey error:NULL];
+            if( [_typeIdentifierRegex numberOfMatchesInString:typeIdentifier options:0 range:NSMakeRange( 0, typeIdentifier.length )] <= 0 ) {
+                continue;
+            }
+        }
         // Make a URL relative to the watched directory
         NSURL *relativeURL = url.URLByStandardizingPath;
         // Add to the fileURLs array

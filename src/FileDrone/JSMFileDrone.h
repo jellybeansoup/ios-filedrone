@@ -107,6 +107,22 @@
 @property (strong, nonatomic, readonly) NSArray *removedFileURLs;
 
 ///---------------------------------------------
+/// @name Filtering
+///---------------------------------------------
+
+/**
+ * Regular expression to match against filenames. Filenames that don't match will not be included in the URL arrays.
+ */
+
+@property (strong, nonatomic) NSRegularExpression *fileNameRegex;
+
+/**
+ * Regular expression to match against file UTIs (uniform type identifier). Files that don't match will not be included in the URL arrays.
+ */
+
+@property (strong, nonatomic) NSRegularExpression *typeIdentifierRegex;
+
+///---------------------------------------------
 /// @name Manual surveillance
 ///---------------------------------------------
 
