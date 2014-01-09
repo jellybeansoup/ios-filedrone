@@ -25,3 +25,4 @@
 #import <Foundation/Foundation.h>
 
 #import "JSMFileDrone.h"
+#import "JSMFileMonitor.h"

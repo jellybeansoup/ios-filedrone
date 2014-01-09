@@ -23,15 +23,18 @@
 //
 
 #import "JSMFileDrone.h"
+#import "JSMFileMonitor.h"
 #import <CommonCrypto/CommonDigest.h>
 
 @interface JSMFileDrone ()
 
-@property (strong, nonatomic) NSTimer *surveillanceTimer;
+@property (strong, nonatomic) NSString *encodedIdentifier;
 
 @property (nonatomic) BOOL allowUpdates;
 
 @property (strong, nonatomic) NSDictionary *modificationDates;
+
+@property (strong, nonatomic) NSMutableDictionary *monitors;
 
 @end
 
@@ -60,6 +63,9 @@
 
         // Enable updates by default
         _allowUpdates = YES;
+
+        // Place to store monitors
+        _monitors = [NSMutableDictionary dictionary];
 
         // Get the stored list of modification dates
         if( [NSFileManager.defaultManager fileExistsAtPath:[self modificationDatesURL].path] ) {
@@ -226,26 +232,7 @@
 #pragma mark - Automatic surveillance
 
 - (BOOL)isSurveilling {
-    return ( _surveillanceTimer != nil && [_surveillanceTimer isValid] );
-}
-
-- (void)resumeSurveillance {
-    // We're already surveilling
-    if( self.isSurveilling ) {
-        return;
-    }
-    // Start surveilling
-    _surveillanceTimer = [NSTimer timerWithTimeInterval:1.0 target:self selector:@selector(refresh) userInfo:nil repeats:YES];
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0),^{
-        // Fire the timer immediately
-        [_surveillanceTimer fire];
-        // Add to a runloop for continued firing
-        [[NSRunLoop currentRunLoop] addTimer:_surveillanceTimer forMode:NSDefaultRunLoopMode];
-		// Log entry
-        NSLog(@"FileDrone started watching %@",_directoryURL.path.lastPathComponent);
-        // Start the run loop
-        [[NSRunLoop currentRunLoop] run];
-    });
+    return ( _monitors.count > 0 );
 }
 
 - (void)startSurveillance {
@@ -254,25 +241,23 @@
         return;
     }
     // Add notifications for starting and stopping when the app transitions to and from the background
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(resumeSurveillance) name:@"UIApplicationWillEnterForegroundNotification" object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(resumeSurveillance) name:@"UIApplicationDidBecomeActiveNotification" object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(pauseSurveillance) name:@"UIApplicationWillResignActiveNotification" object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(pauseSurveillance) name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(enableUpdates) name:@"UIApplicationWillEnterForegroundNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(enableUpdates) name:@"UIApplicationDidBecomeActiveNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(disableUpdates) name:@"UIApplicationWillResignActiveNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(disableUpdates) name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopSurveillance) name:@"UIApplicationWillTerminateNotification" object:nil];
     // Start surveilling
-    [self resumeSurveillance];
-}
-
-- (void)pauseSurveillance {
-    // We're not surveilling
-    if( ! self.isSurveilling ) {
-        return;
+    NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLIsDirectoryKey,nil]];
+    [self addMonitorForURL:_directoryURL];
+    for( NSURL *url in dirEnumerator ) {
+        NSNumber *isDirectory;
+        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+        if( [isDirectory boolValue] == YES ) {
+            [self addMonitorForURL:url];
+        }
     }
-    // Stop the current surveillance
-    [_surveillanceTimer invalidate];
-    _surveillanceTimer = nil;
-    // Log entry
-    NSLog(@"FileDrone stopped watching %@",_directoryURL.path.lastPathComponent);
+    // Do a manual refresh
+    [self refresh];
 }
 
 - (void)stopSurveillance {
@@ -287,7 +272,11 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationWillTerminateNotification" object:nil];
     // Stop the current surveillance
-    [self pauseSurveillance];
+    [self removeMonitorForURL:_directoryURL];
+    [_monitors enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
+        JSMFileMonitor *monitor = (JSMFileMonitor *)obj;
+        [self removeMonitorForURL:monitor.url];
+    }];
 }
 
 - (void)enableUpdates {
@@ -322,6 +311,34 @@
     return [NSFileManager.defaultManager enumeratorAtURL:_directoryURL includingPropertiesForKeys:keys options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:^BOOL(NSURL *url, NSError *error) {
         return YES;
     }];
+}
+
+- (void)addMonitorForURL:(NSURL *)url {
+    // We already have one
+    if( [_monitors objectForKey:url.absoluteString] ) {
+        return;
+    }
+    // Create the monitor
+    JSMFileMonitor *monitor = [JSMFileMonitor monitorWithURL:url];
+    [monitor observeChangesWithTarget:self andSelector:@selector(refresh)];
+    // Try to start it
+    if( ! [monitor start] ) {
+        return;
+    }
+    // Add to the dictionary
+    [_monitors setObject:monitor forKey:url.absoluteString];
+}
+
+- (void)removeMonitorForURL:(NSURL *)url {
+    // We don't have one
+    JSMFileMonitor *monitor;
+    if( ( monitor = [_monitors objectForKey:url.absoluteString] ) == nil ) {
+        return;
+    }
+    // First shut it down
+    [monitor stop];
+    // Then remove it
+    [_monitors removeObjectForKey:url.absoluteString];
 }
 
 @end

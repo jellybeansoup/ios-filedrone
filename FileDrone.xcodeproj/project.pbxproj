@@ -21,6 +21,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		A13E0856187E7A7A00E81F69 /* JSMFileMonitor.m in Sources */ = {isa = PBXBuildFile; fileRef = A13E0855187E7A7A00E81F69 /* JSMFileMonitor.m */; };
 		A1713509185007F800E56C4D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1713508185007F800E56C4D /* Foundation.framework */; };
 		A171356D185012C300E56C4D /* JSMFileDrone.m in Sources */ = {isa = PBXBuildFile; fileRef = A171356C185012C300E56C4D /* JSMFileDrone.m */; };
 /* End PBXBuildFile section */
@@ -38,6 +39,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A13E0854187E7A7A00E81F69 /* JSMFileMonitor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSMFileMonitor.h; sourceTree = "<group>"; };
+		A13E0855187E7A7A00E81F69 /* JSMFileMonitor.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JSMFileMonitor.m; sourceTree = "<group>"; };
 		A1713505185007F800E56C4D /* libFileDrone.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libFileDrone.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1713508185007F800E56C4D /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		A171352E185008F400E56C4D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -96,6 +99,8 @@
 				A171353818500A1A00E56C4D /* FileDrone.h */,
 				A171356B185012C300E56C4D /* JSMFileDrone.h */,
 				A171356C185012C300E56C4D /* JSMFileDrone.m */,
+				A13E0854187E7A7A00E81F69 /* JSMFileMonitor.h */,
+				A13E0855187E7A7A00E81F69 /* JSMFileMonitor.m */,
 			);
 			name = FileDrone;
 			path = src/FileDrone;
@@ -179,6 +184,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A13E0856187E7A7A00E81F69 /* JSMFileMonitor.m in Sources */,
 				A171356D185012C300E56C4D /* JSMFileDrone.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
