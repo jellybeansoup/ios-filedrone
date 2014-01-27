@@ -26,6 +26,8 @@
 #import "JSMFileMonitor.h"
 #import <CommonCrypto/CommonDigest.h>
 
+NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
+
 @interface JSMFileDrone ()
 
 @property (strong, nonatomic) NSString *encodedIdentifier;
@@ -35,6 +37,8 @@
 @property (strong, nonatomic) NSDictionary *modificationDates;
 
 @property (strong, nonatomic) NSMutableDictionary *monitors;
+
+@property (strong, nonatomic) NSMutableArray *refreshCompletions;
 
 @end
 
@@ -113,115 +117,145 @@
 #pragma mark - Manual surveillance
 
 - (void)refresh {
+    [self refreshWithCompletion:^(NSArray *addedURLs,NSArray *changedURLs,NSArray *removedURLs) {
+        // If we're surveilling automatically
+        if( ! self.isSurveilling ) {
+            return;
+        }
+        // Make the userinfo dictionary from the updates we recieved
+        NSMutableDictionary *userInfo = [NSMutableDictionary dictionary];
+        if( addedURLs.count > 0 ) {
+            [userInfo setObject:addedURLs forKey:kFileDroneNotificationAddedURLs];
+        }
+        if( changedURLs.count > 0 ) {
+            [userInfo setObject:changedURLs forKey:kFileDroneNotificationChangedURLs];
+        }
+        if( removedURLs.count > 0 ) {
+            [userInfo setObject:removedURLs forKey:kFileDroneNotificationRemovedURLs];
+        }
+        // Only bother with the notification if there are changes
+        if( userInfo.count > 0 ) {
+            [userInfo setObject:_directoryURL forKey:kFileDroneNotificationDirectoryURL];
+            [[NSNotificationCenter defaultCenter] postNotificationName:JSMFileDroneFilesChanged object:self userInfo:userInfo.copy];
+        }
+    }];
+}
+
+- (void)refreshWithCompletion:(JSMFileDroneRefreshCompletion)completion {
     // Let's make sure we're allowing updates at the moment
     if( ! _allowUpdates ) {
+        // Add this completion if it's not nil
+        if( completion != nil ) {
+            [_refreshCompletions addObject:completion];
+        }
+        // Don't go any further
         return;
     }
     // Stop updates for a minute
     _allowUpdates = NO;
-    // Fetch an enumerator so we can go through the directory contents
-    NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLNameKey,NSURLIsDirectoryKey,NSURLTypeIdentifierKey,NSURLContentModificationDateKey,nil]];
-    // We're going to fetch a list of files, and a list of new ones
-    NSMutableArray *fileURLs = [NSMutableArray array];
-    NSMutableArray *addedFileURLs = [NSMutableArray array];
-    NSMutableArray *changedFileURLs = [NSMutableArray array];
-    NSMutableDictionary *modificationDates = [NSMutableDictionary dictionary];
-    // Enumerate the dirEnumerator results, each value is stored in allURLs
-    for( NSURL *url in dirEnumerator ) {
-        // If it's a directory, we do nothing
-        NSNumber *isDirectory;
-        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-        if( [isDirectory boolValue] == YES ) {
-            continue;
+    // Add this completion if it's not nil
+    if( completion != nil ) {
+        // Prep the completions array
+        if( _refreshCompletions == nil ) {
+            _refreshCompletions = [NSMutableArray array];
         }
-        // Match against the file name regular expression
-        if( _fileNameRegex != nil ) {
-            NSString *fileName;
-            [url getResourceValue:&fileName forKey:NSURLNameKey error:NULL];
-            if( [_fileNameRegex numberOfMatchesInString:fileName options:0 range:NSMakeRange( 0, fileName.length )] <= 0 ) {
+        // Add the block
+        [_refreshCompletions addObject:completion];
+    }
+    // Go to a background queue
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        // Fetch an enumerator so we can go through the directory contents
+        NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLNameKey,NSURLIsDirectoryKey,NSURLTypeIdentifierKey,NSURLContentModificationDateKey,nil]];
+        // We're going to fetch a list of files, and a list of new ones
+        NSMutableArray *fileURLs = [NSMutableArray array];
+        NSMutableArray *addedFileURLs = [NSMutableArray array];
+        NSMutableArray *changedFileURLs = [NSMutableArray array];
+        NSMutableDictionary *modificationDates = [NSMutableDictionary dictionary];
+        // Enumerate the dirEnumerator results, each value is stored in allURLs
+        for( NSURL *url in dirEnumerator ) {
+            // If it's a directory, we do nothing
+            NSNumber *isDirectory;
+            [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+            if( [isDirectory boolValue] == YES ) {
                 continue;
             }
-        }
-        // Match against the type identifier regular expression
-        if( _typeIdentifierRegex != nil ) {
-            NSString *typeIdentifier;
-            [url getResourceValue:&typeIdentifier forKey:NSURLTypeIdentifierKey error:NULL];
-            if( [_typeIdentifierRegex numberOfMatchesInString:typeIdentifier options:0 range:NSMakeRange( 0, typeIdentifier.length )] <= 0 ) {
-                continue;
+            // Match against the file name regular expression
+            if( _fileNameRegex != nil ) {
+                NSString *fileName;
+                [url getResourceValue:&fileName forKey:NSURLNameKey error:NULL];
+                if( [_fileNameRegex numberOfMatchesInString:fileName options:0 range:NSMakeRange( 0, fileName.length )] <= 0 ) {
+                    continue;
+                }
+            }
+            // Match against the type identifier regular expression
+            if( _typeIdentifierRegex != nil ) {
+                NSString *typeIdentifier;
+                [url getResourceValue:&typeIdentifier forKey:NSURLTypeIdentifierKey error:NULL];
+                if( [_typeIdentifierRegex numberOfMatchesInString:typeIdentifier options:0 range:NSMakeRange( 0, typeIdentifier.length )] <= 0 ) {
+                    continue;
+                }
+            }
+            // Make a URL relative to the watched directory
+            NSURL *relativeURL = url.URLByStandardizingPath;
+            // Add to the fileURLs array
+            [fileURLs addObject:relativeURL];
+            // Get the modification date and add to the dictionary
+            NSDate *modificationDate;
+            [url getResourceValue:&modificationDate forKey:NSURLContentModificationDateKey error:NULL];
+            [modificationDates setObject:modificationDate forKey:relativeURL.absoluteString];
+            // If the url isn't in our existing list, it goes in the addedFileURLs too
+            if( ! [_fileURLs containsObject:relativeURL] ) {
+                [addedFileURLs addObject:relativeURL];
+                [changedFileURLs addObject:relativeURL];
+            }
+            // If the url isn't in our existing list, it goes in the addedFileURLs too
+            else if( [modificationDate timeIntervalSinceDate:(NSDate *)[_modificationDates objectForKey:relativeURL.absoluteString]] ) {
+                [changedFileURLs addObject:relativeURL];
             }
         }
-        // Make a URL relative to the watched directory
-        NSURL *relativeURL = url.URLByStandardizingPath;
-        // Add to the fileURLs array
-        [fileURLs addObject:relativeURL];
-        // Get the modification date and add to the dictionary
-        NSDate *modificationDate;
-        [url getResourceValue:&modificationDate forKey:NSURLContentModificationDateKey error:NULL];
-        [modificationDates setObject:modificationDate forKey:relativeURL.absoluteString];
-        // If the url isn't in our existing list, it goes in the addedFileURLs too
-        if( ! [_fileURLs containsObject:relativeURL] ) {
-            [addedFileURLs addObject:relativeURL];
-            [changedFileURLs addObject:relativeURL];
+        // Now we determine what files were removed
+        NSArray *removedFileURLs = [NSArray array];
+        if( ! [_fileURLs isEqualToArray:fileURLs] ) {
+            NSMutableSet *oldSet = [NSMutableSet setWithArray:_fileURLs];
+            NSMutableSet *newSet = [NSMutableSet setWithArray:fileURLs];
+            [oldSet minusSet:newSet];
+            removedFileURLs = [oldSet allObjects];
         }
-        // If the url isn't in our existing list, it goes in the addedFileURLs too
-        else if( [modificationDate timeIntervalSinceDate:(NSDate *)[_modificationDates objectForKey:relativeURL.absoluteString]] ) {
-            [changedFileURLs addObject:relativeURL];
+        // Update the list of files
+        if( ! [_fileURLs isEqualToArray:fileURLs.copy] ) {
+            _fileURLs = fileURLs.copy;
         }
-    }
-    // Now we determine what files were removed
-    NSArray *removedFileURLs = [NSArray array];
-    if( ! [_fileURLs isEqualToArray:fileURLs] ) {
-        NSMutableSet *oldSet = [NSMutableSet setWithArray:_fileURLs];
-        NSMutableSet *newSet = [NSMutableSet setWithArray:fileURLs];
-        [oldSet minusSet:newSet];
-        removedFileURLs = [oldSet allObjects];
-    }
-    // Update the list of files
-    if( ! [_fileURLs isEqualToArray:fileURLs.copy] ) {
-        _fileURLs = fileURLs.copy;
-    }
-    // Update the list of modification dates
-    if( ! [_modificationDates isEqualToDictionary:modificationDates.copy] ) {
-        _modificationDates = modificationDates.copy;
-        // Store them as a file too
-        [_modificationDates writeToURL:[self modificationDatesURL] atomically:YES];
-    }
-    // User info dictionary for notification
-    NSMutableDictionary *userInfo = [NSMutableDictionary dictionary];
-    // Update the list of added files
-    if( ! [_addedFileURLs isEqualToArray:addedFileURLs.copy] ) {
-        // Update the list
-        _addedFileURLs = addedFileURLs.copy;
-        // We only send the notification if there are files to process
-        if( _addedFileURLs.count > 0 ) {
-            [userInfo setObject:_addedFileURLs forKey:kFileDroneNotificationAddedURLs];
+        // Update the list of modification dates
+        if( ! [_modificationDates isEqualToDictionary:modificationDates.copy] ) {
+            _modificationDates = modificationDates.copy;
+            // Store them as a file too
+            [_modificationDates writeToURL:[self modificationDatesURL] atomically:YES];
         }
-    }
-    // Update the list of files that have been modified
-    if( ! [_changedFileURLs isEqualToArray:changedFileURLs.copy] ) {
-        // Update the list
-        _changedFileURLs = changedFileURLs.copy;
-        // We only send the notification if there are files to process
-        if( _changedFileURLs.count > 0 ) {
-            [userInfo setObject:_changedFileURLs forKey:kFileDroneNotificationChangedURLs];
+        // Update the list of added files
+        if( ! [_addedFileURLs isEqualToArray:addedFileURLs.copy] ) {
+            _addedFileURLs = addedFileURLs.copy;
         }
-    }
-    // Update the list of removed files
-    if( ! [_removedFileURLs isEqualToArray:removedFileURLs] ) {
-        // Update the list
-        _removedFileURLs = removedFileURLs;
-        // We only send the notification if there are files to process
-        if( _removedFileURLs.count > 0 ) {
-            [userInfo setObject:_removedFileURLs forKey:kFileDroneNotificationRemovedURLs];
+        // Update the list of files that have been modified
+        if( ! [_changedFileURLs isEqualToArray:changedFileURLs.copy] ) {
+            _changedFileURLs = changedFileURLs.copy;
         }
-    }
-    // If we have user info, post the notification
-    if( self.isSurveilling && userInfo.count > 0 ) {
-        [userInfo setObject:_directoryURL forKey:kFileDroneNotificationDirectoryURL];
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"JSMFileDroneFilesChanged" object:self userInfo:userInfo.copy];
-    }
-    // Restart updates
-    _allowUpdates = YES;
+        // Update the list of removed files
+        if( ! [_removedFileURLs isEqualToArray:removedFileURLs] ) {
+            _removedFileURLs = removedFileURLs;
+        }
+        // Go to the main queue
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Call the completion blocks
+            [_refreshCompletions enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+                JSMFileDroneRefreshCompletion completion = (JSMFileDroneRefreshCompletion)obj;
+                completion( _addedFileURLs, _changedFileURLs, _removedFileURLs );
+            }];
+            // Empty the completion array
+            _refreshCompletions = nil;
+        });
+        // Restart updates
+        _allowUpdates = YES;
+    });
 }
 
 - (NSURL *)modificationDatesURL {

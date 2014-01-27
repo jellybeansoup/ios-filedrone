@@ -29,6 +29,10 @@
 #define kFileDroneNotificationChangedURLs @"kFileDroneNotificationChangedURLs"
 #define kFileDroneNotificationRemovedURLs @"kFileDroneNotificationRemovedURLs"
 
+typedef void(^JSMFileDroneRefreshCompletion)(NSArray *addedURLs,NSArray *changedURLs,NSArray *removedURLs);
+
+NSString *const JSMFileDroneFilesChanged;
+
 /**
  * An `JSMFileDrone` object lets you track files in a directory, optionally sending a notification via
  * `NSNotificationCenter` when files are added or removed. The changes are reported as an arrays containing files added to
@@ -136,12 +140,23 @@
 ///---------------------------------------------
 
 /**
- * Check the documents directory for any file changes.
+ * Check the documents directory for any file changes. On completion, will post the `JSMFileDroneFilesChanged`.
+ *
+ * This method has been deprecated in favour of `refreshWithCompletion:`. If you're using manual surveillance, use that method instead.
  *
  * @return void
  */
 
-- (void)refresh;
+- (void)refresh __attribute__ ((deprecated));
+
+/**
+ * Check the documents directory for any file changes.
+ *
+ * @param completion A completion block that returns void, and is provided with three parameters: `NSArray` objects containing added, changed, and removed URLs respectively. Pass `nil` to do nothing upon completion.
+ * @return void
+ */
+
+- (void)refreshWithCompletion:(JSMFileDroneRefreshCompletion)completion;
 
 ///---------------------------------------------
 /// @name Automatic surveillance

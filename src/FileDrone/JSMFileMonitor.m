@@ -89,7 +89,9 @@ static void fileDroneDescriptorCallBack(CFFileDescriptorRef kqRef, CFOptionFlags
     }
     // Refresh the file lists
     if( monitor.target != nil && monitor.selector != nil && [monitor.target respondsToSelector:monitor.selector] ) {
-        [NSThread detachNewThreadSelector:monitor.selector toTarget:monitor.target withObject:nil];
+        IMP method = [monitor.target methodForSelector:monitor.selector];
+        void (*performSelector)(id, SEL) = (void *)method;
+        performSelector(monitor.target, monitor.selector);
     }
     // Reenable the callback
     CFFileDescriptorEnableCallBacks(monitor.dirkqRef, kCFFileDescriptorReadCallBack);
