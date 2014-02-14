@@ -116,7 +116,12 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 
 #pragma mark - Manual surveillance
 
+// This method is deprecated
 - (void)refresh {
+    [self automatedRefresh];
+}
+
+- (void)automatedRefresh {
     [self refreshWithCompletion:^(NSArray *addedURLs,NSArray *changedURLs,NSArray *removedURLs) {
         // If we're surveilling automatically
         if( ! self.isSurveilling ) {
@@ -291,7 +296,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
         }
     }
     // Do a manual refresh
-    [self refresh];
+    [self automatedRefresh];
 }
 
 - (void)stopSurveillance {
