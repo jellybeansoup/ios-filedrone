@@ -139,10 +139,8 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
             [userInfo setObject:removedURLs forKey:kFileDroneNotificationRemovedURLs];
         }
         // Only bother with the notification if there are changes
-        if( userInfo.count > 0 ) {
-            [userInfo setObject:_directoryURL forKey:kFileDroneNotificationDirectoryURL];
-            [[NSNotificationCenter defaultCenter] postNotificationName:JSMFileDroneFilesChanged object:self userInfo:userInfo.copy];
-        }
+        [userInfo setObject:_directoryURL forKey:kFileDroneNotificationDirectoryURL];
+        [[NSNotificationCenter defaultCenter] postNotificationName:JSMFileDroneFilesChanged object:self userInfo:userInfo.copy];
     }];
 }
 
