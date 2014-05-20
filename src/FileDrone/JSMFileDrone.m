@@ -167,6 +167,8 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     }
     // Go to a background queue
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        // We're just going to breathe a moment
+        [NSThread sleepForTimeInterval:0.5];
         // Fetch an enumerator so we can go through the directory contents
         NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLNameKey,NSURLIsDirectoryKey,NSURLTypeIdentifierKey,NSURLContentModificationDateKey,nil]];
         // We're going to fetch a list of files, and a list of new ones
