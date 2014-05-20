@@ -103,7 +103,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     // Store an encoded identifier
     const char *utf8 = _directoryURL.absoluteString.UTF8String;
     unsigned char md5Buffer[16];
-    CC_MD5( utf8, strlen(utf8), md5Buffer );
+    CC_MD5( utf8, (int)strlen(utf8), md5Buffer );
     NSMutableString *output = [NSMutableString stringWithCapacity:CC_MD5_DIGEST_LENGTH * 2];
     for(int i = 0; i < CC_MD5_DIGEST_LENGTH; i++)
         [output appendFormat:@"%02x",md5Buffer[i]];
