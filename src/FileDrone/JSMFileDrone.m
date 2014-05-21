@@ -34,6 +34,8 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 
 @property (nonatomic) BOOL allowUpdates;
 
+@property (nonatomic) BOOL refreshAgain;
+
 @property (strong, nonatomic) NSDictionary *modificationDates;
 
 @property (strong, nonatomic) NSMutableDictionary *monitors;
@@ -142,6 +144,9 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 }
 
 - (void)automatedRefresh {
+    // If we're refreshing already, postpone for later
+    _refreshAgain = ( ! _allowUpdates );
+    // Do a refresh
     [self refreshWithCompletion:^(NSArray *addedURLs,NSArray *changedURLs,NSArray *removedURLs) {
         // If we're surveilling automatically
         if( ! self.isSurveilling ) {
@@ -161,6 +166,11 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
         // Only bother with the notification if there are changes
         [userInfo setObject:_directoryURL forKey:kFileDroneNotificationDirectoryURL];
         [[NSNotificationCenter defaultCenter] postNotificationName:JSMFileDroneFilesChanged object:self userInfo:userInfo.copy];
+        // Refresh again so we don't miss anything.
+        if( _refreshAgain ) {
+            _refreshAgain = NO;
+            [self performSelector:@selector(automatedRefresh) withObject:nil afterDelay:1];
+        }
     }];
 }
 
@@ -188,7 +198,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     // Go to a background queue
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
         // We're just going to breathe a moment
-        [NSThread sleepForTimeInterval:0.5];
+        //[NSThread sleepForTimeInterval:0.5];
         // We're going to fetch a list of files, and a list of new ones
         NSMutableArray *fileURLs = [NSMutableArray array];
         NSMutableArray *addedFileURLs = [NSMutableArray array];
