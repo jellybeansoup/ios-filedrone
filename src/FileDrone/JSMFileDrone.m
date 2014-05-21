@@ -44,6 +44,8 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 
 @implementation JSMFileDrone
 
+@synthesize fileURLs = _fileURLs;
+
 #pragma mark - Creating a FileDrone
 
 + (instancetype)defaultFileDrone {
@@ -114,6 +116,21 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     }
 }
 
+#pragma mark - Returning URLs
+
+- (NSArray *)fileURLs {
+    // If we've gotten file URLs, returned those.
+    if( _fileURLs != nil ) {
+        return _fileURLs;
+    }
+    // Fetch the file URLs
+    NSMutableArray *mutableURLs = [NSMutableArray array];
+    [self enumerateDirectoryContentsWithBlock:^(NSURL *url) {
+        [mutableURLs addObject:url];
+    }];
+    return mutableURLs.copy;
+}
+
 #pragma mark - Manual surveillance
 
 // This method is deprecated
@@ -169,37 +186,13 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
         // We're just going to breathe a moment
         [NSThread sleepForTimeInterval:0.5];
-        // Fetch an enumerator so we can go through the directory contents
-        NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLNameKey,NSURLIsDirectoryKey,NSURLTypeIdentifierKey,NSURLContentModificationDateKey,nil]];
         // We're going to fetch a list of files, and a list of new ones
         NSMutableArray *fileURLs = [NSMutableArray array];
         NSMutableArray *addedFileURLs = [NSMutableArray array];
         NSMutableArray *changedFileURLs = [NSMutableArray array];
         NSMutableDictionary *modificationDates = [NSMutableDictionary dictionary];
-        // Enumerate the dirEnumerator results, each value is stored in allURLs
-        for( NSURL *url in dirEnumerator ) {
-            // If it's a directory, we do nothing
-            NSNumber *isDirectory;
-            [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
-            if( [isDirectory boolValue] == YES ) {
-                continue;
-            }
-            // Match against the file name regular expression
-            if( _fileNameRegex != nil ) {
-                NSString *fileName;
-                [url getResourceValue:&fileName forKey:NSURLNameKey error:NULL];
-                if( [_fileNameRegex numberOfMatchesInString:fileName options:0 range:NSMakeRange( 0, fileName.length )] <= 0 ) {
-                    continue;
-                }
-            }
-            // Match against the type identifier regular expression
-            if( _typeIdentifierRegex != nil ) {
-                NSString *typeIdentifier;
-                [url getResourceValue:&typeIdentifier forKey:NSURLTypeIdentifierKey error:NULL];
-                if( [_typeIdentifierRegex numberOfMatchesInString:typeIdentifier options:0 range:NSMakeRange( 0, typeIdentifier.length )] <= 0 ) {
-                    continue;
-                }
-            }
+        // Go over the directory contents
+        [self enumerateDirectoryContentsWithBlock:^(NSURL *url) {
             // Make a URL relative to the watched directory
             NSURL *relativeURL = url.URLByStandardizingPath;
             // Add to the fileURLs array
@@ -217,7 +210,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
             else if( [modificationDate timeIntervalSinceDate:(NSDate *)[_modificationDates objectForKey:relativeURL.absoluteString]] ) {
                 [changedFileURLs addObject:relativeURL];
             }
-        }
+        }];
         // Now we determine what files were removed
         NSArray *removedFileURLs = [NSArray array];
         if( ! [_fileURLs isEqualToArray:fileURLs] ) {
@@ -286,7 +279,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(disableUpdates) name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopSurveillance) name:@"UIApplicationWillTerminateNotification" object:nil];
     // Start surveilling
-    NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:[NSArray arrayWithObjects:NSURLIsDirectoryKey,nil]];
+    NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:@[ NSURLIsDirectoryKey ]];
     [self addMonitorForURL:_directoryURL];
     for( NSURL *url in dirEnumerator ) {
         NSNumber *isDirectory;
@@ -350,6 +343,38 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
     return [NSFileManager.defaultManager enumeratorAtURL:_directoryURL includingPropertiesForKeys:keys options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:^BOOL(NSURL *url, NSError *error) {
         return YES;
     }];
+}
+
+- (void)enumerateDirectoryContentsWithBlock:(void(^)(NSURL *url))block {
+    // Fetch an enumerator so we can go through the directory contents
+    NSDirectoryEnumerator *dirEnumerator = [self directoryEnumeratorIncludingPropertiesForKeys:@[ NSURLNameKey, NSURLIsDirectoryKey, NSURLTypeIdentifierKey, NSURLContentModificationDateKey ]];
+    // Enumerate the dirEnumerator results, each value is stored in allURLs
+    for( NSURL *url in dirEnumerator ) {
+        // If it's a directory, we do nothing
+        NSNumber *isDirectory;
+        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+        if( [isDirectory boolValue] == YES ) {
+            continue;
+        }
+        // Match against the file name regular expression
+        if( _fileNameRegex != nil ) {
+            NSString *fileName;
+            [url getResourceValue:&fileName forKey:NSURLNameKey error:NULL];
+            if( [_fileNameRegex numberOfMatchesInString:fileName options:0 range:NSMakeRange( 0, fileName.length )] <= 0 ) {
+                continue;
+            }
+        }
+        // Match against the type identifier regular expression
+        if( _typeIdentifierRegex != nil ) {
+            NSString *typeIdentifier;
+            [url getResourceValue:&typeIdentifier forKey:NSURLTypeIdentifierKey error:NULL];
+            if( [_typeIdentifierRegex numberOfMatchesInString:typeIdentifier options:0 range:NSMakeRange( 0, typeIdentifier.length )] <= 0 ) {
+                continue;
+            }
+        }
+        // Run the block
+        block( url );
+    }
 }
 
 - (void)addMonitorForURL:(NSURL *)url {
