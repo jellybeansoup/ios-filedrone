@@ -70,6 +70,9 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
         // Enable updates by default
         _allowUpdates = YES;
 
+        // Enable recursive mode by default
+        _recursive = YES;
+
         // Place to store monitors
         _monitors = [NSMutableDictionary dictionary];
 
@@ -354,7 +357,12 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
         NSNumber *isDirectory;
         [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
         if( [isDirectory boolValue] == YES ) {
-            continue;
+            if( _recursive ) {
+                continue;
+            }
+            else {
+                [dirEnumerator skipDescendents];
+            }
         }
         // Match against the file name regular expression
         if( _fileNameRegex != nil ) {

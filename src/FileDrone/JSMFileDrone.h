@@ -135,6 +135,14 @@ NSString *const JSMFileDroneFilesChanged;
 
 @property (strong, nonatomic) NSRegularExpression *typeIdentifierRegex;
 
+/**
+ * Handle subdirectories recursively, including children in the URL arrays.
+ *
+ * If the value of this property is `YES` (the default), directories will not be included in the URL arrays.
+ */
+
+@property (nonatomic) BOOL recursive;
+
 ///---------------------------------------------
 /// @name Manual surveillance
 ///---------------------------------------------
