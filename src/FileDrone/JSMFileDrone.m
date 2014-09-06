@@ -207,7 +207,8 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
         // Go over the directory contents
         [self enumerateDirectoryContentsWithBlock:^(NSURL *url) {
             // Make a URL relative to the watched directory
-            NSURL *relativeURL = url.URLByStandardizingPath;
+            NSString *relativePath = [url.standardizedURL.absoluteString stringByReplacingOccurrencesOfString:self.directoryURL.standardizedURL.absoluteString withString:@""];
+            NSURL *relativeURL = [NSURL URLWithString:relativePath relativeToURL:self.directoryURL.URLByStandardizingPath];
             // Add to the fileURLs array
             [fileURLs addObject:relativeURL];
             // Get the modification date and add to the dictionary
