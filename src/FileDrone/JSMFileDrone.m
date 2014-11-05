@@ -56,6 +56,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 	dispatch_once(&onceToken, ^{
         NSURL *documentsURL = [[NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
         _sharedDocuments = [JSMFileDrone fileDroneForDirectoryURL:documentsURL];
+        _sharedDocuments.name = @"JSMDefaultFileDrone";
 	});
 	return _sharedDocuments;
 }

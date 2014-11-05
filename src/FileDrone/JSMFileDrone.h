@@ -75,6 +75,15 @@ NSString *const JSMFileDroneFilesChanged;
 
 + (instancetype)fileDroneForDirectoryURL:(NSURL *)directoryURL;
 
+/**
+ * A text label that can be used to identify a specific file drone.
+ *
+ * The file drone returned by `defaultFileDrone` uses the name "JSMDefaultFileDrone".
+ */
+
+@property (copy, nonatomic) NSString *name;
+
+
 ///---------------------------------------------
 /// @name Directory
 ///---------------------------------------------
