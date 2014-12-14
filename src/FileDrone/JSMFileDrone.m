@@ -28,6 +28,8 @@
 
 NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 
+NSString *const JSMFileDroneDefaultName = @"JSMDefaultFileDrone";
+
 @interface JSMFileDrone ()
 
 @property (strong, nonatomic) NSString *encodedIdentifier;
@@ -56,7 +58,7 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 	dispatch_once(&onceToken, ^{
         NSURL *documentsURL = [[NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
         _sharedDocuments = [JSMFileDrone fileDroneForDirectoryURL:documentsURL];
-        _sharedDocuments.name = @"JSMDefaultFileDrone";
+        _sharedDocuments.name = JSMFileDroneDefaultName;
 	});
 	return _sharedDocuments;
 }
@@ -90,6 +92,12 @@ NSString *const JSMFileDroneFilesChanged = @"JSMFileDroneFilesChanged";
 
 - (void)dealloc {
     [self stopSurveillance];
+}
+
+#pragma mark - Identifying your FileDrone
+
+- (BOOL)isNamed:(NSString *)name {
+    return [self.name isEqualToString:name];
 }
 
 #pragma mark - Directory

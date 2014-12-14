@@ -29,9 +29,11 @@
 #define kFileDroneNotificationChangedURLs @"kFileDroneNotificationChangedURLs"
 #define kFileDroneNotificationRemovedURLs @"kFileDroneNotificationRemovedURLs"
 
-typedef void(^JSMFileDroneRefreshCompletion)(NSArray *addedURLs,NSArray *changedURLs,NSArray *removedURLs);
-
 NSString *const JSMFileDroneFilesChanged;
+
+NSString *const JSMFileDroneDefaultName;
+
+typedef void(^JSMFileDroneRefreshCompletion)(NSArray *addedURLs,NSArray *changedURLs,NSArray *removedURLs);
 
 /**
  * An `JSMFileDrone` object lets you track files in a directory, optionally sending a notification via
@@ -75,14 +77,32 @@ NSString *const JSMFileDroneFilesChanged;
 
 + (instancetype)fileDroneForDirectoryURL:(NSURL *)directoryURL;
 
+///---------------------------------------------
+/// @name Identifying your FileDrone
+///---------------------------------------------
+
 /**
- * A text label that can be used to identify a specific file drone.
+ * A name to use in identifying this file drone.
  *
- * The file drone returned by `defaultFileDrone` uses the name "JSMDefaultFileDrone".
+ * This is particularly useful when you have a handful of file drones going at once, and can totally be something awesome,
+ * like "Phoebe" or "Ricardo".
+ *
+ * The file drone returned by `defaultFileDrone` uses the string const `JSMFileDroneDefaultName`.
  */
 
 @property (copy, nonatomic) NSString *name;
 
+/**
+ * Short hand method for checking a file drone's name.
+ *
+ * It essentially performs a `isEqualToString:` call using the reciever's name and the given string, but is slightly shorter
+ * and that makes me feel good.
+ *
+ * @param name The string you want to check against the reciever's name.
+ * @return A flag indicating if the given string matches the reciever's name (true) or not (false).
+ */
+
+- (BOOL)isNamed:(NSString *)name;
 
 ///---------------------------------------------
 /// @name Directory
